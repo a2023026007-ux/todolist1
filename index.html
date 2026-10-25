@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>심플 투두 리스트</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 커스텀 체크박스 스타일 및 부드러운 전환 효과 */
+        .todo-item {
+            transition: all 0.2s ease-in-out;
+        }
+        .todo-item.fade-out {
+            opacity: 0;
+            transform: translateX(10px);
+        }
+        input[type="checkbox"] {
+            appearance: none;
+            background-color: #fff;
+            margin: 0;
+            font: inherit;
+            color: currentColor;
+            width: 1.5em;
+            height: 1.5em;
+            border: 2px solid #cbd5e1;
+            border-radius: 50%;
+            display: grid;
+            place-content: center;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        input[type="checkbox"]::before {
+            content: "";
+            width: 0.8em;
+            height: 0.8em;
+            clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+            transform: scale(0);
+            transform-origin: bottom left;
+            transition: 120ms transform ease-in-out;
+            box-shadow: inset 1em 1em white;
+            background-color: white;
+        }
+        input[type="checkbox"]:checked {
+            background-color: #3b82f6; /* blue-500 */
+            border-color: #3b82f6;
+        }
+        input[type="checkbox"]:checked::before {
+            transform: scale(1);
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen p-4 md:p-8 flex justify-center items-start">
+
+    <!-- 메인 컨테이너 -->
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden mt-4 md:mt-10">
+        
+        <!-- 헤더 영역 -->
+        <div class="bg-blue-500 p-6 text-white">
+            <h1 class="text-2xl font-bold tracking-tight">오늘의 할 일</h1>
+            <p class="text-blue-100 text-sm mt-1" id="date-display"></p>
+        </div>
+
+        <!-- 입력 영역 -->
+        <div class="p-6 pb-2">
+            <form id="todo-form" class="flex gap-2">
+                <input 
+                    type="text" 
+                    id="todo-input" 
+                    placeholder="새로운 할 일을 입력하세요" 
+                    class="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow text-base"
+                    required
+                >
+                <button 
+                    type="submit" 
+                    class="bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-5 py-3 font-semibold transition-colors flex items-center justify-center shadow-sm"
+                >
+                    추가
+                </button>
+            </form>
+        </div>
+
+        <!-- 필터 영역 -->
+        <div class="px-6 py-2 flex justify-between items-center border-b border-slate-100">
+            <div class="flex gap-2 text-sm font-medium" id="filter-container">
+                <button data-filter="all" class="filter-btn text-blue-600 bg-blue-50 px-3 py-1.5 rounded-md transition-colors">전체</button>
+                <button data-filter="active" class="filter-btn text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-3 py-1.5 rounded-md transition-colors">진행중</button>
+                <button data-filter="completed" class="filter-btn text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-3 py-1.5 rounded-md transition-colors">완료됨</button>
+            </div>
+            <span class="text-xs text-slate-400 font-medium" id="todo-count">0개 남음</span>
+        </div>
+
+        <!-- 리스트 영역 -->
+        <ul id="todo-list" class="max-h-[60vh] overflow-y-auto p-4 space-y-2">
+            <!-- 자바스크립트로 리스트 아이템이 여기에 추가됩니다 -->
+        </ul>
+        
+        <!-- 빈 상태 표시 (기본적으로 숨김) -->
+        <div id="empty-state" class="hidden flex-col items-center justify-center py-10 px-6 text-center">
+            <svg class="w-16 h-16 text-slate-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+            </svg>
+            <p class="text-slate-500 font-medium">할 일이 없습니다.</p>
+            <p class="text-slate-400 text-sm mt-1">새로운 목표를 추가해보세요!</p>
+        </div>
+    </div>
+
+    <script>
+        // DOM 요소
+        const todoForm = document.getElementById('todo-form');
+        const todoInput = document.getElementById('todo-input');
+        const todoList = document.getElementById('todo-list');
+        const emptyState = document.getElementById('empty-state');
+        const todoCount = document.getElementById('todo-count');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const dateDisplay = document.getElementById('date-display');
+
+        // 상태 변수
+        let todos = [];
+        let currentFilter = 'all'; // 'all', 'active', 'completed'
+
+        // 초기화
+        function init() {
+            // 오늘 날짜 표시
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            dateDisplay.textContent = new Date().toLocaleDateString('ko-KR', options);
+
+            // 로컬 스토리지에서 데이터 불러오기
+            loadTodos();
+            
+            // 이벤트 리스너 등록
+            todoForm.addEventListener('submit', handleAddTodo);
+            filterBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => setFilter(e.target.dataset.filter));
+            });
+
+            // 화면 렌더링
+            render();
+        }
+
+        // 로컬 스토리지 저장
+        function saveTodos() {
+            localStorage.setItem('todos', JSON.stringify(todos));
+        }
+
+        // 로컬 스토리지 복원
+        function loadTodos() {
+            const saved = localStorage.getItem('todos');
+            if (saved) {
+                try {
+                    todos = JSON.parse(saved);
+                } catch (e) {
+                    todos = [];
+                }
+            }
+        }
+
+        // 할 일 추가
+        function handleAddTodo(e) {
+            e.preventDefault();
+            const text = todoInput.value.trim();
+            
+            if (text !== '') {
+                const newTodo = {
+                    id: Date.now(),
+                    text: text,
+                    completed: false
+                };
+                
+                todos.unshift(newTodo); // 최신 항목을 위로
+                saveTodos();
+                render();
+                
+                todoInput.value = '';
+                todoInput.focus();
+            }
+        }
+
+        // 할 일 상태 토글
+        function toggleTodo(id) {
+            todos = todos.map(todo => {
+                if (todo.id === id) {
+                    return { ...todo, completed: !todo.completed };
+                }
+                return todo;
+            });
+            saveTodos();
+            render();
+        }
+
+        // 할 일 삭제
+        function deleteTodo(id) {
+            todos = todos.filter(todo => todo.id !== id);
+            saveTodos();
+            render();
+        }
+
+        // 필터 설정
+        function setFilter(filterType) {
+            currentFilter = filterType;
+            
+            // 필터 버튼 스타일 업데이트
+            filterBtns.forEach(btn => {
+                if (btn.dataset.filter === filterType) {
+                    btn.className = "filter-btn text-blue-600 bg-blue-50 px-3 py-1.5 rounded-md transition-colors font-semibold";
+                } else {
+                    btn.className = "filter-btn text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-3 py-1.5 rounded-md transition-colors";
+                }
+            });
+            
+            render();
+        }
+
+        // 화면 렌더링
+        function render() {
+            // 필터링된 배열 생성
+            let filteredTodos = todos;
+            if (currentFilter === 'active') {
+                filteredTodos = todos.filter(todo => !todo.completed);
+            } else if (currentFilter === 'completed') {
+                filteredTodos = todos.filter(todo => todo.completed);
+            }
+
+            // 리스트 초기화
+            todoList.innerHTML = '';
+
+            // 카운트 업데이트 (진행중인 항목 기준)
+            const activeCount = todos.filter(todo => !todo.completed).length;
+            todoCount.textContent = `${activeCount}개 남음`;
+
+            // 빈 상태 표시 제어
+            if (filteredTodos.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+                
+                // 아이템 렌더링
+                filteredTodos.forEach(todo => {
+                    const li = document.createElement('li');
+                    li.className = `todo-item flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 shadow-sm hover:border-blue-200 ${todo.completed ? 'opacity-70' : ''}`;
+                    
+                    // XSS 방지를 위해 textContent 사용
+                    const textSpan = document.createElement('span');
+                    textSpan.textContent = todo.text;
+                    textSpan.className = `flex-1 ml-3 text-base transition-all ${todo.completed ? 'line-through text-slate-400' : 'text-slate-700 font-medium'}`;
+                    
+                    li.innerHTML = `
+                        <div class="flex items-center flex-1 overflow-hidden">
+                            <input type="checkbox" ${todo.completed ? 'checked' : ''} onchange="toggleTodo(${todo.id})">
+                            <!-- textSpan은 아래에서 append 됨 -->
+                        </div>
+                        <button onclick="deleteTodo(${todo.id})" class="ml-2 text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-200" aria-label="삭제">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    `;
+                    
+                    // DOM 조작으로 안전하게 텍스트 노드 삽입
+                    li.querySelector('div').appendChild(textSpan);
+                    
+                    // 완료 상태일 때 항목 클릭해도 체크박스 토글 (편의성)
+                    textSpan.addEventListener('click', () => toggleTodo(todo.id));
+                    textSpan.style.cursor = 'pointer';
+
+                    todoList.appendChild(li);
+                });
+            }
+        }
+
+        // 앱 실행
+        document.addEventListener('DOMContentLoaded', init);
+
+    </script>
+</body>
+</html>
